@@ -1,0 +1,9 @@
+epsilon: 0.05
+alpha: 0.01
+n_iters: 10
+imagenet_means: [0.5, 0.5, 0.5]
+imagenet_stds: [0.5, 0.5, 0.5]
+imagenet_lower_bound: -1.0
+imagenet_upper_bound: 1.0
+model_name: "google/vit-base-patch16-224"
+fig_dir: "figs/config_2"
