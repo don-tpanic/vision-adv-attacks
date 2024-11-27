@@ -1,0 +1,9 @@
+epsilon: 0.05
+alpha: 0.01
+n_iters: 10
+imagenet_means: [0.485, 0.456, 0.406]
+imagenet_stds: [0.229, 0.224, 0.225]
+imagenet_lower_bound: -2.1179
+imagenet_upper_bound: 2.64
+model_name: "VGG16"
+fig_dir: "figs/config_1"
