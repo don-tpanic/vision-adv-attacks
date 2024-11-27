@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torchvision import transforms, models
 from PIL import Image
-from utils import plotting, models
+from utils import plotting, models, data
 
 def load_config(config_version="config_1"):
     config_path = f"configs/{config_version}.yaml"
@@ -95,7 +95,8 @@ def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_i
             history['loss'].append(loss_value)
             history['pred_class_id'].append(pred_class_id)
 
-        print(f"Iter {i+1}/{n_iters} | Loss: {loss_value:.4f} | Pred class id: {pred_class_id}")
+        print(f"Iter {i+1}/{n_iters} | Loss: {loss_value:.4f} | "\
+              f"Pred class id: {pred_class_id} | Pred class: {data.decode_class_id_to_description(pred_class_id)}")
 
     return perturbed_img, cumulative_noise, history
 
@@ -176,6 +177,7 @@ def main(args):
     print(f"Noise Prediction: {noise_pred_id} ({noise_prob*100:.2f}%)")
     print(f"Perturbed Prediction: {perturbed_pred_id} ({perturbed_prob*100:.2f}%)")
     print(f"Target Class ID: {target_class_id}")
+    print(f"Target Class: {data.decode_class_id_to_description(target_class_id)}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Iterative FGSM attack")
