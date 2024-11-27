@@ -6,15 +6,6 @@ from torchvision import transforms, models
 from PIL import Image
 from utils import plotting, models, data
 
-def load_config(config_version="config_1"):
-    """
-    Load the configuration file.
-    """
-    config_path = f"configs/{config_version}.yaml"
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
-
 def preprocess_image(img_path, device, imagenet_means, imagenet_stds):
     """
     Preprocess the image for the model.
@@ -118,7 +109,7 @@ def iterative_fgsm_attack(model,
 
 def main(args):
     # Load configurations
-    config = load_config(args.config)
+    config = data.load_config(args.config)
     img_path = args.img_path
     target_class_id = args.target_class_id
     epsilon = config['epsilon']
