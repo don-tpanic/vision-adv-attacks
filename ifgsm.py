@@ -1,17 +1,23 @@
+import yaml
+import argparse
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
 from PIL import Image
 from utils import plotting, models
 
-def preprocess_image(img_path):
+def load_config(config_version="config_1"):
+    config_path = f"configs/{config_version}.yaml"
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
+
+def preprocess_image(img_path, device, imagenet_means, imagenet_stds):
     """
     Preprocess the image for the model.
-
     Args:
         - img_path: Path to the input image.
-
-        Returns:
+    Returns:
         - Tensor: Preprocessed image tensor.
     """
     transform = transforms.Compose([
@@ -23,10 +29,10 @@ def preprocess_image(img_path):
     img = Image.open(img_path).convert("RGB")
     return transform(img).unsqueeze(0).to(device)
 
-def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_iters):
+def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_iters, device, criterion,
+                          imagenet_lower_bound, imagenet_upper_bound):
     """
     Perform an Iterative FGSM (I-FGSM) attack.
-
     Args:
         - model: The neural network model
         - original_img: Input image tensor
@@ -34,7 +40,6 @@ def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_i
         - epsilon: Maximum perturbation
         - alpha: Step size for each iteration
         - n_iters: Number of perturbation steps
-
     Returns:
         - perturbed_img: The adversarial image
         - cumulative_noise: The total perturbation added
@@ -57,7 +62,8 @@ def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_i
 
         # Compute loss for `target` class
         target_tensor = torch.tensor([target_label], dtype=torch.long, device=device)
-        loss = criterion(output, target_tensor)  
+        loss = criterion(output, target_tensor)
+
         model.zero_grad()
         loss.backward()
 
@@ -73,7 +79,7 @@ def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_i
         cumulative_noise = torch.clamp(cumulative_noise, -epsilon, epsilon)
         perturbed_img = original_img + cumulative_noise
 
-        # Ensure pertubed image is within ImageNet bounds
+        # Ensure perturbed image is within ImageNet bounds
         perturbed_img = torch.clamp(
             perturbed_img, imagenet_lower_bound, imagenet_upper_bound)
 
@@ -93,12 +99,30 @@ def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_i
 
     return perturbed_img, cumulative_noise, history
 
-def main():
+def main(args):
+    # Load configurations
+    config = load_config(args.config)
+    img_path = args.img_path
+    target_class_id = args.target_class_id
+    epsilon = config['epsilon']
+    alpha = config['alpha']
+    n_iters = config['n_iters']
+    imagenet_means = config['imagenet_means']
+    imagenet_stds = config['imagenet_stds']
+    imagenet_lower_bound = config['imagenet_lower_bound']
+    imagenet_upper_bound = config['imagenet_upper_bound']
+    model_name = config['model_name']
+    fig_dir = config['fig_dir']
+
+    # Set device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    criterion = nn.CrossEntropyLoss()
+
     # Load model
     model = models.load_model(model_name, device=device)
 
     # Load and preprocess the image
-    original_img = preprocess_image(img_path)
+    original_img = preprocess_image(img_path, device, imagenet_means, imagenet_stds)
 
     # Get original model predictions
     with torch.no_grad():
@@ -108,12 +132,16 @@ def main():
 
     # Perform IFGSM
     perturbed_img, noise, history = iterative_fgsm_attack(
-        model, 
-        original_img, 
-        target_class_id, 
+        model,
+        original_img,
+        target_class_id,
         epsilon,
         alpha,
-        n_iters
+        n_iters,
+        device,
+        criterion,
+        imagenet_lower_bound,
+        imagenet_upper_bound
     )
 
     # Classify the perturbed image
@@ -133,30 +161,41 @@ def main():
         original_img, noise, perturbed_img, 
         original_pred_id, noise_pred_id, perturbed_pred_id, 
         [original_prob, noise_prob, perturbed_prob],
+        imagenet_means, imagenet_stds,
+        img_path, target_class_id,
         fig_dir
     )
 
     # Plot loss and predicted class over iterations
-    plotting.plot_metrics(history, save_dir=fig_dir)
+    plotting.plot_metrics(
+        img_path, target_class_id,
+        history, 
+        fig_dir
+    )
     print(f"Original Prediction: {original_pred_id} ({original_prob*100:.2f}%)")
     print(f"Noise Prediction: {noise_pred_id} ({noise_prob*100:.2f}%)")
     print(f"Perturbed Prediction: {perturbed_pred_id} ({perturbed_prob*100:.2f}%)")
     print(f"Target Class ID: {target_class_id}")
 
 if __name__ == "__main__":
-    # img_path = "data/imagenet_1k_val_white/n02085620/ILSVRC2012_val_00001049.JPEG"
-    img_path = "data/imagenet_1k_val_white/n03908618/ILSVRC2012_val_00001265.JPEG"
-    target_class_id = 283
-    epsilon = 0.05          
-    alpha = 0.01
-    n_iters = 10
-    imagenet_means = [0.485, 0.456, 0.406]
-    imagenet_stds = [0.229, 0.224, 0.225]
-    imagenet_lower_bound = -2.1179
-    imagenet_upper_bound = 2.64
-    model_name = "VGG16"
-    fig_dir = "figs"
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    criterion = nn.CrossEntropyLoss()
-    
-    main()
+    parser = argparse.ArgumentParser(description="Iterative FGSM attack")
+    parser.add_argument(
+        "--config", 
+        type=str, 
+        default="config_1", 
+        help="Path to the config file"
+    )
+    parser.add_argument(
+        "--img_path",
+        type=str,
+        default="data/imagenet_1k_val_white/n03908618/ILSVRC2012_val_00001265.JPEG",
+        help="Path to the input image"
+    )
+    parser.add_argument(
+        "--target_class_id",
+        type=int,
+        default=283,  # ImageNet class: Persian_cat
+        help="Target class ID for the attack"
+    )
+    args = parser.parse_args()
+    main(args)

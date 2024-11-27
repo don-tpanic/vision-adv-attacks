@@ -2,14 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_metrics(history, save_dir="figs"):
-    """
-    Plot the loss and predicted class over iterations.
-
-    Args:
-        - history: Dictionary containing 'loss' and 'pred_class_id' lists.
-        - save_dir: Directory to save the plots.
-    """
+def plot_metrics(img_path, target_class_id, history, save_dir):
     os.makedirs(save_dir, exist_ok=True)
     
     n_iters = len(history['loss'])
@@ -33,12 +26,17 @@ def plot_metrics(history, save_dir="figs"):
     plt.grid(True)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, "attack_metrics.png"))
+    original_img_fname = os.path.basename(img_path)
+    current_fname = f"analysis_{original_img_fname.split('.')[0]}_to_{target_class_id}_metrics.png"
+    plt.savefig(os.path.join(save_dir, current_fname))
+    print(f"Metrics plot saved at: {os.path.join(save_dir, current_fname)}")
 
 def visualize_images(
         original_img, noise_img, perturbed_img, 
         original_label, noise_label, perturbed_label, 
         probs,
+        imagenet_means, imagenet_stds,
+        img_path, target_class_id,
         save_dir
     ):
     os.makedirs(save_dir, exist_ok=True)
@@ -49,8 +47,8 @@ def visualize_images(
     perturbed_img = perturbed_img.cpu().detach().numpy().squeeze()
 
     # De-normalize original and perturbed images (channel-wise)
-    mean = np.array([0.485, 0.456, 0.406]).reshape(3, 1, 1)
-    std = np.array([0.229, 0.224, 0.225]).reshape(3, 1, 1)
+    mean = np.array(imagenet_means).reshape(3, 1, 1)
+    std = np.array(imagenet_stds).reshape(3, 1, 1)
     
     original_img = std * original_img + mean
     perturbed_img = std * perturbed_img + mean
@@ -84,10 +82,15 @@ def visualize_images(
     ax[2].axis("off")
     
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, "attack_visualization.png"))
+    original_img_fname = os.path.basename(img_path)
+    current_fname = f"analysis_{original_img_fname.split('.')[0]}_to_{target_class_id}.png"
+    plt.savefig(os.path.join(save_dir, current_fname))
     plt.close()
 
     # Save the final pertubed image individually
     plt.imshow(perturbed_img)
     plt.axis("off")
-    plt.savefig(os.path.join(save_dir, "perturbed_image.png"))
+    current_fname = f"final_{original_img_fname.split('.')[0]}_to_{target_class_id}.png"
+    plt.savefig(os.path.join(save_dir, current_fname))
+
+    print(f"Images saved at: {os.path.join(save_dir, current_fname)}")
