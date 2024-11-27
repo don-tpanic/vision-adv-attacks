@@ -2,31 +2,8 @@ import yaml
 import argparse
 import torch
 import torch.nn as nn
-from torchvision import transforms, models
-from PIL import Image
+from torchvision import  models
 from utils import plotting, models, data
-
-def preprocess_image(img_path, device, imagenet_means, imagenet_stds):
-    """
-    Preprocess the image for the model.
-
-    Args:
-        - img_path: Path to the input image.
-        - device: Device to run the model on.
-        - imagenet_means: Mean values of ImageNet dataset.
-        - imagenet_stds: Standard deviation values of ImageNet dataset
-
-    Returns:
-        - Tensor: Preprocessed image tensor.
-    """
-    transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=imagenet_means, std=imagenet_stds)
-    ])
-    img = Image.open(img_path).convert("RGB")
-    return transform(img).unsqueeze(0).to(device)
 
 def iterative_fgsm_attack(model, 
                           original_img, target_label, epsilon, alpha, 
@@ -66,11 +43,12 @@ def iterative_fgsm_attack(model,
 
     for i in range(n_iters):
         output = model(perturbed_img)
+        if hasattr(output, "logits"):  # for huggingface models
+            output = output.logits
 
         # Compute loss for `target` class
         target_tensor = torch.tensor([target_label], dtype=torch.long, device=device)
         loss = criterion(output, target_tensor)
-
         model.zero_grad()
         loss.backward()
 
@@ -97,6 +75,8 @@ def iterative_fgsm_attack(model,
         # Record loss and prediction
         with torch.no_grad():
             output = model(perturbed_img)
+            if hasattr(output, "logits"):  # for huggingface models
+                output = output.logits
             loss_value = criterion(output, target_tensor).item()
             pred_class_id = output.max(1, keepdim=True)[1].item()
             history['loss'].append(loss_value)
@@ -126,17 +106,13 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     criterion = nn.CrossEntropyLoss()
 
-    # Load model
+    # Load model and preprocess image
     model = models.load_model(model_name, device=device)
-
-    # Load and preprocess the image
-    original_img = preprocess_image(img_path, device, imagenet_means, imagenet_stds)
-
+    original_img = models.preprocess_image(
+        model_name, img_path, device, imagenet_means, imagenet_stds)
+    
     # Get original model predictions
-    with torch.no_grad():
-        output = model(original_img)
-        original_pred_id = output.max(1, keepdim=True)[1].item()
-        original_prob = torch.nn.functional.softmax(output, dim=1)[0, original_pred_id].item()
+    original_pred_id, original_prob = models.get_model_prediction(original_img, model)
 
     # Perform IFGSM
     perturbed_img, noise, history = iterative_fgsm_attack(
@@ -153,16 +129,10 @@ def main(args):
     )
 
     # Classify the perturbed image
-    with torch.no_grad():
-        output_perturbed = model(perturbed_img)
-        perturbed_pred_id = output_perturbed.max(1, keepdim=True)[1].item()
-        perturbed_prob = torch.nn.functional.softmax(output_perturbed, dim=1)[0, perturbed_pred_id].item()
+    perturbed_pred_id, perturbed_prob = models.get_model_prediction(perturbed_img, model)
 
     # Classify the noise (TODO: make sense or not given the range of noise might be OOD)
-    with torch.no_grad():
-        noise_output = model(noise)
-        noise_pred_id = noise_output.max(1, keepdim=True)[1].item()
-        noise_prob = torch.nn.functional.softmax(noise_output, dim=1)[0, noise_pred_id].item()
+    noise_pred_id, noise_prob = models.get_model_prediction(noise, model)
     
     # Visualize the images and save the plot
     plotting.visualize_images(
