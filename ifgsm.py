@@ -7,6 +7,9 @@ from PIL import Image
 from utils import plotting, models, data
 
 def load_config(config_version="config_1"):
+    """
+    Load the configuration file.
+    """
     config_path = f"configs/{config_version}.yaml"
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
@@ -15,8 +18,13 @@ def load_config(config_version="config_1"):
 def preprocess_image(img_path, device, imagenet_means, imagenet_stds):
     """
     Preprocess the image for the model.
+
     Args:
         - img_path: Path to the input image.
+        - device: Device to run the model on.
+        - imagenet_means: Mean values of ImageNet dataset.
+        - imagenet_stds: Standard deviation values of ImageNet dataset
+
     Returns:
         - Tensor: Preprocessed image tensor.
     """
@@ -29,10 +37,13 @@ def preprocess_image(img_path, device, imagenet_means, imagenet_stds):
     img = Image.open(img_path).convert("RGB")
     return transform(img).unsqueeze(0).to(device)
 
-def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_iters, device, criterion,
+def iterative_fgsm_attack(model, 
+                          original_img, target_label, epsilon, alpha, 
+                          n_iters, device, criterion,
                           imagenet_lower_bound, imagenet_upper_bound):
     """
     Perform an Iterative FGSM (I-FGSM) attack.
+
     Args:
         - model: The neural network model
         - original_img: Input image tensor
@@ -40,6 +51,11 @@ def iterative_fgsm_attack(model, original_img, target_label, epsilon, alpha, n_i
         - epsilon: Maximum perturbation
         - alpha: Step size for each iteration
         - n_iters: Number of perturbation steps
+        - device: Device to run the model on
+        - criterion: Loss function
+        - imagenet_lower_bound: Lower bound for ImageNet pixel values
+        - imagenet_upper_bound: Upper bound for ImageNet pixel values
+
     Returns:
         - perturbed_img: The adversarial image
         - cumulative_noise: The total perturbation added
