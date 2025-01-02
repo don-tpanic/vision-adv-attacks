@@ -1,5 +1,10 @@
 # An implementation of iterative fast gradient sign method for creating targeted adversarial images.
 
+## Description
+The original Fast Gradient Sign Method (FGSM), introduced in this [paper](https://arxiv.org/abs/1412.6572), provides an efficient approach to generating adversarial images for vision models. FGSM perturbs the pixel values of an input image in the direction that reduces the likelihood of the image being correctly classified. This direction is determined by the sign of the gradient of the error with respect to the input image.
+
+While FGSM is effective, it does not guarantee that the adversarial image will lead to a specific target misclassification; the misclassified class is not predetermined. This repo implements a variation of FGSM that addresses this limitation by enabling control over the target misclassification. Instead of maximizing the classification error for the original class, this approach minimizes the classification error for the desired target class.
+
 ## Example output
 ![analysis_ILSVRC2012_val_00001049_to_283](https://github.com/user-attachments/assets/96c12e63-dc5c-42ec-82e3-71961c706de6)
 
